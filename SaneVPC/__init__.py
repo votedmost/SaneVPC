@@ -20,6 +20,7 @@ def get_vpc_by_name(name):
 
 def get_vpc_by_id(vpcid):
     # TODO - take conn or region kwarg
+    # TODO - DRY
     conn = boto.vpc.connect_to_region("us-west-2")
     vpcs = conn.get_all_vpcs(vpc_ids=(vpcid,))
     if not len(vpcs):
@@ -38,7 +39,7 @@ class SaneVPC(boto.vpc.vpc.VPC):
         self._upgrade_thyself()
 
     def _upgrade_thyself(self):
-        self.instances = []
+        self.instances = {}
         self.subnets = []
         self.security_groups = {}
 
@@ -49,9 +50,11 @@ class SaneVPC(boto.vpc.vpc.VPC):
         vpc._upgrade_thyself()
 
     def update_instances(self):
-        res = self.connection.get_all_instances(filters={"vpc-id":self.id})
-        self.instances = list(itertools.chain(*[r.instances for r in res]))
-        # TODO - make dict by tags['Name']
+        reservations = self.connection.get_all_instances(filters={"vpc-id":self.id})
+        instances ={ instance.tags.get("Name",instance.id): instance for 
+                     reservation in reservations for 
+                     instance in reservation.instances }
+        self.instances = instances
 
     def update_subnets(self):
         filters={"vpcId":self.id}
